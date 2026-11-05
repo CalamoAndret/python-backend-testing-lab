@@ -1,0 +1,6 @@
+[
+  {"kind": "create", "slot": 0},
+  {"kind": "update", "slot": 0, "title": "winner", "status": "in_progress"},
+  {"kind": "update", "slot": 0, "title": "loser", "status": "completed", "stale": true},
+  {"kind": "read", "slot": 0}
+]

@@ -1,0 +1,7 @@
+[
+  {"kind": "create", "slot": 0},
+  {"kind": "delete", "slot": 0},
+  {"kind": "create", "slot": 0},
+  {"kind": "read", "slot": 0},
+  {"kind": "create", "slot": 0, "title": "different"}
+]

@@ -1,0 +1,79 @@
+name: Backend correctness
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: lab
+          POSTGRES_PASSWORD: lab
+          POSTGRES_DB: testing_lab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lab -d testing_lab_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_URL: postgresql+asyncpg://lab:lab@localhost:5432/testing_lab_test
+      TEST_DATABASE_URL: postgresql+asyncpg://lab:lab@localhost:5432/testing_lab_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+      - run: uv sync --locked --python 3.12
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync alembic upgrade head
+      - run: uv run --no-sync alembic check
+      - run: uv run --no-sync pytest --cov --cov-report=term-missing --cov-report=xml
+      - run: uv run --no-sync python -m scripts.demonstrate_bug
+      - run: uv run --no-sync python -m scripts.replay tests/regression/sequences/stale_write.json
+      - run: uv run --no-sync python -m scripts.replay tests/regression/sequences/retry_after_delete.json
+      - name: Migration round trip
+        run: |
+          uv run --no-sync alembic downgrade base
+          uv run --no-sync alembic upgrade head
+          uv run --no-sync alembic check
+      - name: Upload coverage and failing replay
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: correctness-evidence
+          path: |
+            coverage.xml
+            artifacts/
+          if-no-files-found: ignore
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and start application
+        run: docker compose up --build -d --wait api
+      - name: Verify readiness
+        run: curl --fail http://localhost:8000/health/ready
+      - name: Run suite in container
+        run: docker compose --profile test run --build --rm test
+      - name: Container diagnostics
+        if: failure()
+        run: docker compose logs
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

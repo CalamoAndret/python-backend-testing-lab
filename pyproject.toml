@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "python-backend-testing-lab"
+version = "1.0.0"
+description = "A PostgreSQL-backed API and executable laboratory for backend correctness"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "sqlalchemy[asyncio]>=2.0.38,<2.1",
+  "asyncpg>=0.30,<1",
+  "alembic>=1.14,<2",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<10",
+  "pytest-asyncio>=0.25,<2",
+  "pytest-cov>=6,<8",
+  "hypothesis>=6.125,<7",
+  "httpx>=0.28,<1",
+  "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/testing_lab"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src", "/tests", "/migrations", "/scripts", "/demos", "/docs", "/docker",
+  "/.github", "/.dockerignore", "/.env.example", "/.gitattributes", "/.gitignore",
+  "/.python-version", "/alembic.ini", "/docker-compose.yml", "/Dockerfile",
+  "/pyproject.toml", "/uv.lock", "/README.md", "/LICENSE", "/SECURITY.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = [
+  "postgres: requires a migrated, dedicated PostgreSQL test database",
+  "concurrency: synchronized tests with independent database transactions",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["testing_lab"]
+branch = true
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".tools", "artifacts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM"]
