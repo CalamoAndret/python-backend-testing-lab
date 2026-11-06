@@ -1,5 +1,7 @@
 # Verification evidence
 
+> Historical implementation record. For the November 6, 2026 documentation refresh, current checks, and hosted CI evidence, see [documentation verification](documentation-verification.md).
+
 Executed during implementation on **November 5, 2026**, on Windows, using a
 project-local CPython **3.12.16** and real PostgreSQL **17.11**. These are local
 results, not claims about a hosted GitHub Actions run or Docker execution.

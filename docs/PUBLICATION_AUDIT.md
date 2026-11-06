@@ -1,5 +1,7 @@
 # GitHub publication readiness audit
 
+> Historical implementation record. For the November 6, 2026 documentation refresh, current checks, and hosted CI evidence, see [documentation verification](documentation-verification.md).
+
 Audit date: **November 5, 2026**. Scope: all publication-candidate source files,
 README and supporting documentation, lockfile, tests, migrations, Docker files,
 workflow configuration, ignore rules, and Python distribution contents.

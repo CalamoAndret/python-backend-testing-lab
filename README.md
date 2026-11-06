@@ -1,13 +1,28 @@
 # Python Backend Testing Lab
 
-A task management REST API and an executable laboratory for backend correctness.
-Designed to demonstrate backend engineering, concurrency, debugging, API design,
-and automated evaluation of generated code in senior technical interviews.
+[![CI and PostgreSQL tests](https://github.com/CalamoAndret/python-backend-testing-lab/actions/workflows/ci.yml/badge.svg?branch=main&label=CI%20%26%20PostgreSQL%20tests)](https://github.com/CalamoAndret/python-backend-testing-lab/actions/workflows/ci.yml)
 
-The central question is **what happens when valid requests race, retry, or fail
-halfway through a transaction?** Tests exercise real PostgreSQL transactions,
-compare API behavior with an independent reference model, and reject a deliberately
-broken concurrency implementation. No performance benchmarks are claimed.
+A FastAPI and PostgreSQL task API built to make backend correctness observable.
+It demonstrates what happens when valid requests **race, retry, or fail halfway
+through a transaction**, with executable tests for each contract.
+
+The core is small enough to review: atomic version predicates prevent lost updates,
+durable idempotency keys preserve creation responses, and generated API sequences
+are checked against an independent reference model. Saved traces turn failures into
+replayable regressions. No performance benchmarks are claimed.
+
+[Run the API](#run-with-docker) · [Request/response walkthrough](docs/api-walkthrough.md) · [Architecture](#architecture) · [Testing strategy](#testing-strategy) · [Security](SECURITY.md)
+
+## Engineering highlights
+
+| Concern | Implementation | Evidence to review |
+| --- | --- | --- |
+| Lost updates | Version condition inside PostgreSQL UPDATE/DELETE | [Repositories](src/testing_lab/repositories.py), [synchronized race tests](tests/integration/test_concurrency.py) |
+| Retried creation | Key reservation, task, and saved response in one transaction | [Service](src/testing_lab/services.py), [idempotency race tests](tests/integration/test_concurrency.py) |
+| Transaction failures | Commit before success, rollback on exceptions | [Fault-injection tests](tests/integration/test_transactions.py) |
+| Stateful correctness | Generated operations compared with an independent model | [Oracle](tests/support/reference.py), [Hypothesis state machine](tests/property/test_state_machine.py) |
+| Reproducible debugging | Logical-slot JSON traces and a replay harness | [Replay support](tests/support/replay.py), [saved regressions](tests/regression/sequences/) |
+| Test effectiveness | Opt-in broken UPDATE must fail a specific race test | [Mutation demonstration](scripts/demonstrate_bug.py) |
 
 ## Features and stack
 
@@ -104,6 +119,10 @@ lock waits have a 5-second timeout. Migrations run separately from worker startu
 
 ## API examples
 
+See the [executed request/response walkthrough](docs/api-walkthrough.md) for creation,
+replay, a successful update, a stale-version conflict, and deletion against a real
+local PostgreSQL-backed API. UUIDs and timestamps in that capture are run-specific.
+
 Examples use Bash and curl. On Windows use `curl.exe` with PowerShell JSON quoting,
 or use Swagger UI. Replace `TASK_UUID` with the returned UUID and use its version.
 
@@ -121,6 +140,30 @@ curl -X PATCH http://localhost:8000/tasks/TASK_UUID \
   -d '{"expected_version":1,"status":"in_progress"}'
 
 curl -i -X DELETE 'http://localhost:8000/tasks/TASK_UUID?expected_version=2'
+```
+
+The following response was captured from a real synthetic `POST /tasks` using
+`{"title":"Review transaction boundaries","description":"Synthetic documentation example","priority":1}`
+and `Idempotency-Key: docs-demo-20261106-001`. Transport headers are omitted.
+The [complete walkthrough](docs/api-walkthrough.md) includes the exact request and
+the subsequent retry, update, conflict, and deletion responses.
+
+```http
+HTTP/1.1 201 Created
+content-type: application/json
+location: /tasks/60adffc9-b2db-4bf7-8e85-e5656540f9d3
+idempotency-replayed: false
+
+{
+  "id": "60adffc9-b2db-4bf7-8e85-e5656540f9d3",
+  "title": "Review transaction boundaries",
+  "description": "Synthetic documentation example",
+  "status": "pending",
+  "priority": 1,
+  "created_at": "2026-11-06T13:35:55.789890Z",
+  "updated_at": "2026-11-06T13:35:55.789890Z",
+  "version": 1
+}
 ```
 
 | Endpoint | Success | Contract |
@@ -223,6 +266,13 @@ The algorithm relies on PostgreSQL READ COMMITTED isolation. References:
 The application explicitly configures this isolation level on its connections.
 
 ## Testing strategy
+
+**Property-based testing** generates many operation sequences instead of relying only
+on handwritten examples. Hypothesis explores creates, reads, updates, deletes, stale
+versions, and key reuse. The independent model predicts outcomes and collection state;
+the harness checks these against the actual API after every operation. Stateful rules
+also exercise complete lifecycles and verify invariants. Shrinking helps find smaller
+counterexamples. These bounded tests provide evidence, not a proof of all executions.
 
 | Suite | What it demonstrates |
 | --- | --- |
@@ -388,8 +438,8 @@ This is a production-style portfolio sample, not a complete public deployment.
   failure events omit raw exception messages and SQL parameters; protect server
   logs because unhandled exceptions can still produce diagnostic tracebacks.
 
-See [verification evidence](docs/VERIFICATION.md) for actual local results and
-checks that still need Docker or hosted CI.
+See the [documentation refresh verification](docs/documentation-verification.md) for current
+checks and [earlier verification evidence](docs/VERIFICATION.md) for implementation history.
 
 ## Project structure
 
